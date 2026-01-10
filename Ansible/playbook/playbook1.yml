@@ -1,0 +1,47 @@
+---
+ - name: install nginx on ubuntu
+   hosts: Ubuntu_Servers
+   vars:
+     package_names:
+        - nginx
+        - wget
+        - telnet
+        - unzip
+     service_name: "nginx"
+   become: yes
+   gather_facts: yes
+   tags:
+     - ubuntu
+   tasks:
+     - name: installing packages
+       apt:
+         name: "{{ item }}"
+         state: latest
+         update_cache: yes
+       loop:
+         - "{{ package_names }}"
+       tags:
+         - ubuntu
+
+     - name: start nginx service
+       service:
+         name: "{{ service_name }}"
+         state: started
+       tags:
+         - ubuntu
+
+     - name: copy file to target servers
+       template:
+         src: "{{ item.src }}"
+         dest: "{{ item.dest }}"
+       notify: restart the service
+       loop:
+         - { src: index.html.j2, dest: /var/www/html/index.nginx-debian.html }
+       tags:
+         - ubuntu
+
+   handlers:
+    - name: restart the service
+      service:
+        name: nginx
+        state: restarted

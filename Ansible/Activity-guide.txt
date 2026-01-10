@@ -1,0 +1,97 @@
+-----------------------
+Ansible Activity Guide:
+-----------------------
+
+Activity List:
+--------------
+1.) Install Nginx on web nodes with configure vhost files using a template
+2.) Install Java (OpenJDK) on app nodes (create user, set env var)
+3.) Do the installation via Ansible roles for Nginx and Java 
+4.) Create Inventory files for web and app groups
+5.) Write all the tasks & handlers for service reload
+
+Deliverables: 
+-------------
+A full set of Ansible files (roles + inventory + playbooks) you can place into the ansible control node and run.
+
+--------------------------------------------------------------------------------
+
+
+Project layout (recommended)
+----------------------------
+
+Step 1 – Setup project structure
+
+Create a folder structure like this:
+Note: All the code with respect to below steps / phases are in "learn-ansible-roles" directory
+
+learn-ansible-roles/
+├─ inventory
+├─ roles/
+│  ├─ nginx/
+│  │  ├─ tasks/main.yml
+│  │  ├─ handlers/main.yml
+│  │  ├─ templates/vhost.j2
+│  │  └─ defaults/main.yml
+│  └─ java/
+│     ├─ tasks/main.yml
+│     └─ defaults/main.yml
+└─ playbook.yml
+
+-----------------------------------------------------------------------------
+
+Step-by-step Guide:
+-------------------
+
+Pre-requisites:
+SSH / Access:
+- Ensure control machine has SSH access to targets (key-based)
+- Use ansible_user, ansible_ssh_private_key_file per host in the inventory file
+
+1.) Create inventory file named "inventory" in the root folder with following details
+Refer following File: 
+- inventory
+
+2) Create roles
+
+You can generate roles default folders using below commands:
+
+ansible-galaxy init roles/nginx
+ansible-galaxy init roles/java
+
+Nginx Role: roles/nginx
+Refer following File:
+- roles/nginx/defaults/main.yml
+- roles/nginx/tasks/main.yml
+- roles/nginx/handlers/main.yml
+- roles/nginx/templates/vhost.j2
+
+
+Java Role: roles/java
+Refer following File:
+- roles/java/defaults/main.yml
+- roles/java/tasks/main.yml
+
+3.) Playbook to call the above created roles playbook.yml
+Refer following File:
+- playbook.yml
+
+4.) Running the playbook
+
+Dry-run (check mode):
+ansible-playbook -i inventory playbook.yml --check
+
+Basic run:
+ansible-playbook -i inventory playbook.yml
+
+Verbose (helpful for debugging):
+ansible-playbook -i inventory playbook.yml -v
+
+5.) Testing & Idempotency
+
+- Run ansible-playbook playbook.yml once and observe changes
+- Run it again and there should be no changes (idempotent)
+
+6.) Scaling & Parallelism
+
+Increase forks in ansible.cfg to run more concurrent tasks
