@@ -13,3 +13,8 @@ kubectl get svc -n monitoring grafana
 
 Username: admin
 Password: admin123
+
+
+4. For configuring Grafana to send alerts, use below manifest file:
+
+kubectl apply -f Grafana\grafana-with-alerts.yaml

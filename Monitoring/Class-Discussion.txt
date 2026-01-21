@@ -1,0 +1,80 @@
+Monitoring??
+
+Concentrate on alarms
+CPU, memory Monitoring
+
+
+Analysis of logs, metrics (cpu utilization)...
+
+Observing the system performance...
+
+it can help us trace the cause of the issues...
+
+------------------------------------------------------
+Observability:
+- metrics (typical monitoring) - CPU, Memory, Disk Storage, Iops
+e.g.: Nagios (OS / Enterprise), Zabbix (OS / Enterprise), Solarwinds (Enterprise)
+
+Question: 
+Linux: 
+    top / htop command for cpu & memory
+    w for showing current load
+    df -h for disk Storage
+    vmstat / iostat 
+    free -m/h for RAM
+
+Alerts when: if CPU is more than 90% email
+
+Open Source: Nagios, Zabbix, Prometheus and Grafana
+Cloud Based Monitoring tools: AWS CloudWatch, Azure Monitor
+Enterprise Monitoring tools: DataDog, Splunk, Dynatrace, NewRelic, AppDynamics, logzio, Solarwinds, tivoli, zepkins floath
+
+- logs -
+
+I have 10 servers on which my app is running...
+
+I got to know that an error has occurred in my app and the users are facing some issues...
+
+the standard metrics are not reporting any kind of anomalies meaning CPU, Memory and Storage are all in line
+
+How will you troubleshoot this issue now?
+- Check the logs, what logs (application logs)
+e.g.: I will go to the folder wherein my logs of the app is stored... I will open that log file and start reading for error that is occuring..
+
+- Do you expect that during an event wherein my users are facing issues.. I have time to ssh into 10 servers and then find error in the logs files of those 10 servers...
+
+First on the enterprise space: Splunk
+On the Open Source Space: ELK (ElasticSearch, LogStash, Kibana and filebeat) now they call it as Elastic Stack
+
+
+- traces / APM (Application performance Monitoring): Primarily developed to understand the performance of the application and then enhance it..
+
+you are order food in Zomato.. to searched cakes and it took around 1 sec to list down the shops which sell cakes.. whereas it should have taken some milli-seconds
+
+AppDynamics which is now a cisco company
+NewRelic
+
+
+---------
+
+In terms of Kubernetes env: the basic monitoring, logging and tracing was challenging...
+
+Prometheus and Grafana
+
+--- Kubernetes env are dynamic in nature...
+
+In my Kubernetes cluster I can have 3 worker nodes now and tomorrow I will have 5
+
+My pods in K8S are ephemeral in nature..
+
+TSDB (Time Series Database)
+-- Time Series format: 
+
+if you are monitoring via Nagios: you configure in Nagios that alert me when the CPU cross 90%... and you say check that in every 1 min
+
+- In every 1 min, it will run the command to check the current CPU metrics and will compare it will the threshold defined - either send an email or skip
+
+whereas if you do the same thing from Prometheus / CloudWatch...
+
+Every min, they will capture the CPU usage and then store an entry inside their TSDB with following format:
+17:49 - 20% - aryan-laptop

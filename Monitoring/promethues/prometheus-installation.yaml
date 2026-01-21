@@ -160,7 +160,7 @@ data:
       # 6. NODE-EXPORTER
       #--------------------------------------------------------------------------
       # Monitors OS-level metrics (CPU, memory, disk I/O, network, etc.)
-      # NOTE: Requires separate deployment of node-exporter (usually as DaemonSet)
+      # NOTE: Requires separate deployment of node-exporter (always as DaemonSet)
       #--------------------------------------------------------------------------
       - job_name: 'node-exporter'
         kubernetes_sd_configs:
