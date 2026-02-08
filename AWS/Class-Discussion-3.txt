@@ -1,0 +1,550 @@
+===============================================================
+Deployment Strategies, Cost Optimization & DR - Session Notes
+===============================================================
+
+## Zero-Downtime Deployment Strategies
+
+### Background: On-Premises Music Streaming Site
+
+**Setup**: 12 servers running music streaming website in on-premises data center
+
+**Server Groups**:
+- **GroupA** - 3 servers
+- **GroupB** - 3 servers
+- **GroupC** - 3 servers
+- **GroupD** - 3 servers
+
+All servers behind a Load Balancer
+
+---
+
+### On-Premises Deployment Strategy
+
+**Problem**: Deploy latest changes without impacting end users
+
+**Solution**: Rolling deployment with Jenkins
+
+#### CI Pipeline
+- Builds the application from latest codebase
+- Creates versioned JAR file (e.g., `test-2.1.4.jar`)
+
+#### CD Pipeline Steps
+
+**For GroupA** (then repeat for B, C, D):
+1. Send API call to Load Balancer → Remove GroupA servers from backend
+2. Take backup of currently running JAR file on all 3 servers
+3. Deploy latest JAR file (`test-2.1.4.jar`)
+4. Run health checks on servers
+5. If everything works fine → Send API call to LB → Add GroupA back
+6. Repeat same steps for GroupB, then GroupC, then GroupD
+
+**Result**: Zero downtime, gradual rollout across all server groups
+
+---
+
+## Deployment Strategies on AWS
+
+**Scenario**: 12 servers running music streaming site on AWS
+
+### 1. Rolling Updates
+
+**How it works**:
+- Update servers in batches (similar to on-premises strategy)
+- Remove subset from Load Balancer → Update → Health check → Add back
+- Move to next batch
+
+**Pros**:
+✅ Zero downtime
+✅ Gradual rollout
+✅ Easy rollback (stop deployment, rollback remaining servers)
+
+**Cons**:
+❌ Takes time (sequential batches)
+❌ Both old and new versions running simultaneously during deployment
+
+---
+
+### 2. Canary Deployment
+
+**How it works**:
+- Create **new Target Group** with new servers
+- Deploy **Version 2** (newer version) to new Target Group
+- Shift **10-20% traffic** to new Target Group
+- Monitor metrics (errors, latency, user feedback)
+- If stable → Gradually shift more traffic (50%, 80%, 100%)
+- If issues → Rollback by shifting traffic back to old version
+
+**Architecture**:
+```
+                    ALB
+                     ↓
+        ┌────────────┴────────────┐
+        ↓                         ↓
+  TG-Version1 (80%)         TG-Version2 (20%)
+  (Old version)             (New version)
+        ↓                         ↓
+  8 EC2 instances           4 EC2 instances
+```
+
+**Pros**:
+✅ Real user feedback with minimal risk
+✅ Easy rollback (just shift traffic back)
+✅ Test in production with real traffic
+
+**Cons**:
+❌ **Risk**: Two versions running simultaneously
+❌ Database compatibility challenges
+❌ Requires careful application design
+
+**AWS ECS Canary**: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/canary-deployment.html
+
+---
+
+### 3. Blue/Green Deployment
+
+**How it works**:
+- **Blue** = Current production environment (running Version 1)
+- **Green** = New environment (running Version 2)
+- Create Green Target Group with **same number of EC2s** as Blue
+- Deploy updated application to Green environment
+- Test Green environment thoroughly (staging traffic, test users)
+- If everything works → Switch traffic from Blue to Green (DNS/LB update)
+- Keep Blue as backup for quick rollback if needed
+
+**Architecture**:
+
+**Before Switch**:
+```
+ALB → Blue TG (100% traffic)
+      ├── EC2-1 (Version 1)
+      ├── EC2-2 (Version 1)
+      └── EC2-3 (Version 1)
+
+      Green TG (0% traffic - testing)
+      ├── EC2-4 (Version 2)
+      ├── EC2-5 (Version 2)
+      └── EC2-6 (Version 2)
+```
+
+**After Switch**:
+```
+ALB → Green TG (100% traffic)
+      ├── EC2-4 (Version 2)
+      ├── EC2-5 (Version 2)
+      └── EC2-6 (Version 2)
+
+      Blue TG (0% traffic - backup)
+      ├── EC2-1 (Version 1)
+      ├── EC2-2 (Version 1)
+      └── EC2-3 (Version 1)
+```
+
+**Pros**:
+✅ Instant rollback (switch back to Blue)
+✅ Full testing before production traffic
+✅ No downtime
+✅ Only one version runs at a time in production
+
+**Cons**:
+❌ **Expensive** - Need double infrastructure during deployment
+❌ **Data sync challenges** - How to handle database changes?
+❌ Database migration complexity
+
+**Challenges**:
+- **Data Sync Issue**: Live environment vs new environment may have different data
+- **Database Strategy**: How to manage schema changes, data migration?
+
+**AWS ECS Blue/Green**: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/deployment-type-blue-green.html
+
+---
+
+### Canary Deployment - Enterprise Use Case
+
+**Scenario**: Big enterprise wants real user feedback on new feature
+
+**Requirements**:
+- Need to run **two versions simultaneously**
+- Application and database must be architected to support this
+- Version 1 and Version 2 must be compatible
+
+**Design Considerations**:
+- Database schema must be backward compatible
+- Feature flags to toggle new features on/off
+- Separate data partitioning if needed
+- Monitoring and observability for both versions
+
+---
+
+
+## Kubernetes Deployment Strategies
+
+### Built-in Strategies
+
+#### 1. Rolling Updates (Default)
+- Gradually replaces old pods with new ones
+- Configurable: `maxSurge`, `maxUnavailable`
+- Zero downtime
+
+#### 2. Recreate
+- Terminates all old pods first
+- Then creates new pods
+- Downtime occurs (not recommended for production)
+
+### Advanced Strategies (Using Tools)
+
+#### Istio or Argo Rollouts
+
+Can implement:
+- **Canary deployments** - Traffic shifting based on metrics
+- **Blue/Green deployments** - Instant traffic switch
+- **A/B testing** - Route based on headers, user attributes
+- **Progressive delivery** - Automated rollout based on metrics
+
+---
+
+
+## AWS Cost Optimization Strategies
+
+### 1. Reserved Instances (RIs)
+
+**What**: Commit to 1-year or 3-year term for significant discount
+
+**Savings**: 40-75% compared to On-Demand pricing
+
+**Use for**: Predictable, steady-state workloads
+
+**Example**:
+- Music streaming servers running 24/7
+- Database servers (RDS)
+- Bastion hosts
+
+---
+
+### 2. Savings Plans
+
+**What**: Flexible pricing model - commit to $/hour usage
+
+**Types**:
+- **Compute Savings Plan** - EC2, Lambda, Fargate (up to 66% savings)
+- **EC2 Instance Savings Plan** - Specific instance family (up to 72% savings)
+
+**Use for**: EC2 and RDS workloads with some flexibility needed
+
+---
+
+### 3. Proper Resource Tagging
+
+**Why**: Enable chargeback and showback
+
+**Required Tags**:
+- `Environment`: prod, staging, dev, poc
+- `CostCenter`: Finance, Engineering, Marketing
+- `Owner`: team-name or email
+- `Project`: project-name
+
+**Example Automation**:
+```
+Tag: "Environment=poc"
+Rule: If resource running > 1 week → Delete automatically
+```
+
+**Benefits**:
+- Track costs per team/project
+- Identify unused POC resources
+- Automated cleanup of temporary resources
+
+---
+
+### 4. Storage Lifecycle Management
+
+**Strategy**: Move old backups to cheaper storage tiers
+
+**S3 Lifecycle Policy Example**:
+```
+Recent backups (0-30 days)     → S3 Standard
+Old backups (30-90 days)       → S3 Infrequent Access
+Archive backups (90+ days)     → S3 Glacier
+Very old backups (1+ year)     → S3 Glacier Deep Archive
+```
+
+**Savings**: Up to 95% cost reduction for archived data
+
+---
+
+### 5. Spot Instances
+
+**What**: Spare AWS capacity at up to 90% discount
+
+**Use for**:
+- Batch processing jobs
+- Data analysis workloads
+- Temporary workloads
+- CI/CD build servers
+
+**Not suitable for**:
+- Production critical applications
+- Databases
+- Services requiring 24/7 availability
+
+---
+
+### 6. Automated Start/Stop Scheduling
+
+**Strategy**: Shutdown non-production resources outside business hours
+
+**Example**:
+- Development/QA environments
+- Shutdown at 7 PM → Start at 9 AM next day
+- Savings: ~65% (run 10 hours instead of 24 hours)
+
+**AWS Solutions**:
+- Instance Scheduler (AWS Solution)
+- Lambda + EventBridge
+- AWS Systems Manager
+
+---
+
+### 7. Multi-AZ for Production Only
+
+**Strategy**: Avoid Multi-AZ for non-production environments
+
+**Environments**:
+- **Production** → Multi-AZ (high availability)
+- **UAT** → Multi-AZ (if business critical)
+- **QA/Dev** → Single-AZ (acceptable downtime)
+
+**Savings**: 50% reduction in infrastructure cost for lower environments
+
+---
+
+### 8. Rightsizing Instances
+
+**Process**:
+1. Monitor CPU, memory, disk, network metrics (CloudWatch)
+2. Identify over-provisioned instances
+3. Downgrade to appropriate instance type
+
+**Example**:
+```
+Current: t4.8xlarge (32 vCPU, 128 GB RAM)
+Metrics: CPU 40%, Memory 35% (underutilized)
+Action:  Downgrade to t4.4xlarge (16 vCPU, 64 GB RAM)
+Savings: 50% cost reduction
+```
+
+---
+
+### 9. Use Latest Generation Instances
+
+**Strategy**: Migrate from older to newer instance types
+
+**Example**:
+- **Old**: t2.medium ($0.0464/hour)
+- **New**: t4.medium ($0.0336/hour)
+- **Savings**: ~28% cheaper with better performance
+
+**Action**: Replace t2 → t3 → t4 (latest)
+
+---
+
+### 10. AWS Graviton Instances
+
+**What**: ARM-based processors designed by AWS
+
+**Savings**: Up to 40% better price-performance
+
+**Compatible Services**:
+- EC2 instances (t4g, m7g, c7g, r7g)
+- RDS databases (MySQL, PostgreSQL)
+- ElastiCache
+- Lambda (arm64 architecture)
+
+**Migration**:
+- Check all RDS instances
+- Migrate to Graviton-based instances (db.t4g, db.m7g, db.r7g)
+
+---
+
+### 11. Optimize Data Transfer Costs
+
+**Problem**: Data egress (outbound from AWS) is expensive
+
+**Scenario**: EC2 app communicating with S3 bucket
+
+**Inefficient Architecture**:
+```
+EC2 → NAT Gateway → Internet → S3 (Public endpoint)
+Cost: NAT Gateway charges + Data transfer charges
+```
+
+**Optimized Architecture**:
+```
+EC2 → VPC Endpoint (Gateway) → S3 (Private connection)
+Cost: No NAT Gateway, No data transfer charges
+```
+**Savings**: Eliminate data transfer costs for S3 traffic
+
+---
+
+
+## Real-World Cost Optimization Example
+
+### Neo4j Backup Scenario
+
+**Setup**:
+- **EC2-1** (Neo4j Server) - Runs 24/7
+- **EC2-2** (Backup Client) - Runs daily for 1 hour
+
+**Strategy**:
+
+#### EC2-1 (Neo4j Server)
+- Runs 24/7 (critical app)
+- **Action**: Purchase Savings Plan or Reserved Instance
+- **Savings**: 40-60% compared to On-Demand
+
+#### EC2-2 (Backup Client)
+**Process**:
+1. Starts automatically at 6 AM (Lambda/EventBridge)
+2. Connects to Neo4j server
+3. Takes graph database backup
+4. Stores backup to S3
+5. Stops automatically
+
+**Optimization Steps**:
+1. Create AMI of the backup client instance
+2. Terminate the original instance
+3. Use AMI to launch **Spot Instance** daily
+4. Spot instance runs backup job → Stores to S3 → Terminates
+
+**Cost Comparison**:
+- On-Demand 24/7: $730/month (t3.medium)
+- On-Demand 1 hour/day: $30/month
+- Spot 1 hour/day: $3/month (90% discount)
+
+**Savings**: $727/month = $8,724/year
+
+---
+
+
+## EBS Volume Types
+
+**EBS = Elastic Block Storage** (storage drive attached to EC2)
+
+### Volume Types
+
+| Type | Use Case | IOPS | Cost |
+|------|----------|------|------|
+| **gp3** | Default SSD, general purpose | 3,000-16,000 | Lower (recommended) |
+| **gp2** | Legacy SSD, general purpose | 3,000-16,000 | Higher (avoid) |
+| **io1** | High-performance SSD | Up to 64,000 | Expensive |
+| **io2** | High-performance SSD (better) | Up to 64,000 | Expensive |
+
+**IOPS = Input/Output Operations Per Second** (measure of storage performance)
+
+**Recommendation**: 
+- Default choice: **gp3** (better price, same/better performance than gp2)
+- High-performance databases: **io2**
+- Legacy: Migrate gp2 → gp3 for cost savings
+
+---
+
+
+## Disaster Recovery (DR) & High Availability (HA)
+
+### Disaster vs High Availability
+
+#### Disaster (Regional-level failure)
+- Natural disasters: Floods, earthquakes
+- Massive cyberattacks
+- Complete regional outage
+
+**Solution**: Disaster Recovery plan
+
+#### High Availability (AZ-level failure)
+- Datacenter electricity failure
+- Hardware failure (rack, storage)
+- Smaller, localized issues
+
+**Solution**: Multi-AZ architecture
+
+---
+
+### High Availability (HA) Strategies
+
+#### 1. Multi-AZ Distribution
+```
+VPC (ap-south-1)
+├── AZ-A (ap-south-1a)
+│   ├── EC2-1
+│   └── RDS Primary
+├── AZ-B (ap-south-1b)
+│   ├── EC2-2
+│   └── RDS Standby
+└── AZ-C (ap-south-1c)
+    └── EC2-3
+```
+
+#### 2. Placement Strategies
+- **Spread Placement Group** - Instances on different physical racks
+- **Partition Placement Group** - Divide instances into logical partitions
+- **Cluster Placement Group** - Low-latency, high-throughput (same rack)
+
+---
+
+### Disaster Recovery (DR)
+
+**Goal**: Recover services in case of regional failure
+
+#### DR Testing
+**DR Drill**: Testing the DR environment to ensure it works
+
+**Frequency**: 
+- Quarterly (every 3 months)
+- Semi-annual (every 6 months)
+- Annual (once a year)
+
+**Purpose**: Validate that DR environment can actually handle production workload
+
+---
+
+### DR Metrics
+
+#### RTO (Recovery Time Objective)
+**Definition**: Maximum acceptable downtime
+
+**Example**: RTO = 4 hours
+- System can be down for maximum 4 hours
+- Must restore service within 4 hours of disaster
+
+#### RPO (Recovery Point Objective)
+**Definition**: Maximum acceptable data loss
+
+**Example**: RPO = 4 hours
+- Can lose maximum 4 hours of data
+- Must have backups from at least 4 hours ago
+- Backup frequency: Every 4 hours minimum
+
+---
+
+### Business Impact Analysis (BIA)
+
+**Purpose**: Categorize applications by criticality
+
+**Tier Examples**:
+
+| Tier | RTO | RPO | Example Applications |
+|------|-----|-----|---------------------|
+| **Platinum** | 5 minutes | 5 minutes | Payment systems, trading platforms |
+| **Gold** | 1 hour | 1 hour | Customer-facing apps, e-commerce |
+| **Silver** | 4 hours | 4 hours | Internal tools, reporting |
+| **Bronze** | 24 hours | 24 hours | Archive systems, dev environments |
+
+**Strategy**:
+- Platinum tier → Active-Active / Warm Standby on multi-region
+- Gold tier → Pilot Light with automatic failover
+- Silver tier → Backup & restore from snapshots
+- Bronze tier → Manual recovery, basic backups
+
+**Cost Impact**: Higher tier = More expensive DR solution
+
+---
